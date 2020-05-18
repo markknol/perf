@@ -1,10 +1,8 @@
-import haxe.Timer;
-import js.html.Performance;
-import js.html.DivElement;
 import js.Browser;
+import js.html.DivElement;
+import js.html.Performance;
 
 @:expose class Perf {
-
 	public static var MEASUREMENT_INTERVAL:Int = 1000;
 
 	public static var FONT_FAMILY:String = "Helvetica,Arial";
@@ -25,8 +23,6 @@ import js.Browser;
 	public static var TOP_RIGHT:String = "TR";
 	public static var BOTTOM_LEFT:String = "BL";
 	public static var BOTTOM_RIGHT:String = "BR";
-
-	static var POS_SUFFIX:String = "px";
 
 	static var DELAY_TIME:Int = 4000;
 
@@ -57,15 +53,11 @@ import js.Browser;
 	var _memoryObj:Memory;
 	var _raf:Int;
 
-	var RAF:Dynamic;
-	var CAF:Dynamic;
-
-	var _divElements:Array<DivElement>;
+	var _eventLoop:MainEvent;
 
 	public function new(?pos = "TR", ?offset:Float = 0) {
-		_divElements = [];
 		_perfObj = Browser.window.performance;
-		if (Reflect.field(_perfObj, "memory") != null) _memoryObj = Reflect.field(_perfObj, "memory");
+		if (Reflect.hasField(_perfObj, "memory")) _memoryObj = Reflect.field(_perfObj, "memory");
 		_memCheck = (_perfObj != null && _memoryObj != null && _memoryObj.totalJSHeapSize > 0);
 
 		_pos = pos;
@@ -76,31 +68,7 @@ import js.Browser;
 		_createMsDom();
 		if (_memCheck) _createMemoryDom();
 
-		var lastTime:Float = 0;
-		var id:Timer = null;
-
-		if (Browser.window.requestAnimationFrame != null) RAF = Browser.window.requestAnimationFrame;
-		else {
-			RAF = function(callback) {
-				var currTime = _now();
-				var timeToCall = Std.int(Math.max(0, 16 - (currTime - lastTime)));
-				id = Timer.delay(function() { callback(currTime + timeToCall); }, timeToCall);
-				lastTime = currTime + timeToCall;
-				return id;
-			};
-		}
-
-		if (Browser.window.cancelAnimationFrame != null) CAF = Browser.window.cancelAnimationFrame;
-		else {
-			CAF = function(id:Timer) {
-				if (id != null) {
-					id.stop();
-					id = null;
-				}
-			};
-		}
-
-		if (RAF != null) _raf = Reflect.callMethod(Browser.window, RAF, [_tick]);
+		_tick(0);
 	}
 
 	inline function _init() {
@@ -134,7 +102,6 @@ import js.Browser;
 			ms.innerHTML = "MS: " + currentMs;
 
 			currentFps = Math.round((_ticks * 1000) / (time - _prevTime));
-			if (currentFps > 60) currentFps = 60;
 			if (currentFps > 0 && val > DELAY_TIME) {
 				_measureCount++;
 				_totalFps += currentFps;
@@ -159,7 +126,7 @@ import js.Browser;
 		}
 		_startTime =  time;
 
-		if (_raf != null) _raf = Reflect.callMethod(Browser.window, RAF, [_tick]);
+		_raf = Browser.window.requestAnimationFrame(_tick);
 	}
 
 	function _createDiv(id:String, ?top:Float = 0):DivElement {
@@ -170,17 +137,17 @@ import js.Browser;
 
 		switch (_pos) {
 			case "TL":
-				div.style.left = _offset + POS_SUFFIX;
-				div.style.top = top + POS_SUFFIX;
+				div.style.left = _offset + "px";
+				div.style.top = top + "px";
 			case "TR":
-				div.style.right = _offset + POS_SUFFIX;
-				div.style.top = top + POS_SUFFIX;
+				div.style.right = _offset + "px";
+				div.style.top = top + "px";
 			case "BL":
-				div.style.left = _offset + POS_SUFFIX;
-				div.style.bottom = ((_memCheck) ? 48 : 32) - top + POS_SUFFIX;
+				div.style.left = _offset + "px";
+				div.style.bottom = ((_memCheck) ? 48 : 32) - top + "px";
 			case "BR":
-				div.style.right = _offset + POS_SUFFIX;
-				div.style.bottom = ((_memCheck) ? 48 : 32) - top + POS_SUFFIX;
+				div.style.right = _offset + "px";
+				div.style.bottom = ((_memCheck) ? 48 : 32) - top + "px";
 		}
 
 		div.style.width = "80px";
@@ -192,7 +159,6 @@ import js.Browser;
 		div.style.fontWeight = "bold";
 		div.style.textAlign = "center";
 		Browser.document.body.appendChild(div);
-		_divElements.push(div);
 		return div;
 	}
 
@@ -244,7 +210,7 @@ import js.Browser;
 	}
 
 	public function destroy() {
-		_cancelRAF();
+		Browser.window.cancelAnimationFrame(_raf);
 		_perfObj = null;
 		_memoryObj = null;
 		if (fps != null) {
@@ -261,19 +227,6 @@ import js.Browser;
 		}
 		clearInfo();
 		_init();
-	}
-
-	public function hide() {
-		for (div in _divElements) div.style.visibility = "hidden";
-	}
-
-	public function show() {
-		for (div in _divElements) div.style.visibility = "visible";
-	}
-
-	inline function _cancelRAF() {
-		Reflect.callMethod(Browser.window, CAF, [_raf]);
-		_raf = null;
 	}
 }
 
