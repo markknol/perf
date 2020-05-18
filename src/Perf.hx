@@ -53,8 +53,6 @@ import js.html.Performance;
 	var _memoryObj:Memory;
 	var _raf:Int;
 
-	var _eventLoop:MainEvent;
-
 	public function new(?pos = "TR", ?offset:Float = 0) {
 		_perfObj = Browser.window.performance;
 		if (Reflect.hasField(_perfObj, "memory")) _memoryObj = Reflect.field(_perfObj, "memory");
